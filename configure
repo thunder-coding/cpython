@@ -939,8 +939,6 @@ LLVM_AR
 PROFILE_TASK
 DEF_MAKE_RULE
 DEF_MAKE_ALL_RULE
-ABI_THREAD
-ABIFLAGS
 LN
 MKDIR_P
 INSTALL_DATA
@@ -959,6 +957,8 @@ GNULD
 EXPORTSFROM
 EXPORTSYMS
 LINKCC
+ABI_THREAD
+ABIFLAGS
 LDVERSION
 RUNSHARED
 INSTSONAME
@@ -1096,11 +1096,11 @@ with_app_store_compliance
 enable_wasm_dynamic_linking
 enable_wasm_pthreads
 with_suffix
+enable_gil
+with_pydebug
 enable_shared
 with_static_libpython
 enable_profiling
-enable_gil
-with_pydebug
 with_trace_refs
 enable_pystats
 with_assertions
@@ -1832,12 +1832,12 @@ Optional Features:
                           loader to handle imports
   --enable-wasm-pthreads  Enable pthread emulation for WebAssembly (default is
                           no)
+  --disable-gil           enable support for running without the GIL (default
+                          is no)
   --enable-shared         enable building a shared Python library (default is
                           no)
   --enable-profiling      enable C-level code profiling with gprof (default is
                           no)
-  --disable-gil           enable support for running without the GIL (default
-                          is no)
   --enable-pystats        enable internal statistics gathering (default is no)
   --enable-optimizations  enable expensive, stable optimizations (PGO, etc.)
                           (default is no)
@@ -1889,10 +1889,10 @@ Optional Packages:
                           patch to apply.
   --with-suffix=SUFFIX    set executable suffix to SUFFIX (default is empty,
                           yes is mapped to '.exe')
+  --with-pydebug          build with Py_DEBUG defined (default is no)
   --without-static-libpython
                           do not build libpythonMAJOR.MINOR.a and do not
                           install python.o (default is yes)
-  --with-pydebug          build with Py_DEBUG defined (default is no)
   --with-trace-refs       enable tracing references for debugging purpose
                           (default is no)
   --with-assertions       build with C assertions enabled (default is no)
@@ -7571,7 +7571,78 @@ INSTSONAME='$(LDLIBRARY)'
 DLLLIBRARY=''
 LDLIBRARYDIR=''
 RUNSHARED=''
-LDVERSION="$VERSION"
+
+# For calculating the .so ABI tag.
+
+
+ABIFLAGS=""
+ABI_THREAD=""
+
+# Check for --disable-gil
+# --disable-gil
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for --disable-gil" >&5
+printf %s "checking for --disable-gil... " >&6; }
+# Check whether --enable-gil was given.
+if test ${enable_gil+y}
+then :
+  enableval=$enable_gil; if test "x$enable_gil" = xyes
+then :
+  disable_gil=no
+else case e in #(
+  e) disable_gil=yes ;;
+esac
+fi
+else case e in #(
+  e) disable_gil=no
+ ;;
+esac
+fi
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $disable_gil" >&5
+printf "%s\n" "$disable_gil" >&6; }
+
+if test "$disable_gil" = "yes"
+then
+
+printf "%s\n" "#define Py_GIL_DISABLED 1" >>confdefs.h
+
+  # Add "t" for "threaded"
+  ABIFLAGS="${ABIFLAGS}t"
+  ABI_THREAD="t"
+fi
+
+# Check for --with-pydebug
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for --with-pydebug" >&5
+printf %s "checking for --with-pydebug... " >&6; }
+
+# Check whether --with-pydebug was given.
+if test ${with_pydebug+y}
+then :
+  withval=$with_pydebug;
+if test "$withval" != no
+then
+
+printf "%s\n" "#define Py_DEBUG 1" >>confdefs.h
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; };
+  Py_DEBUG='true'
+  ABIFLAGS="${ABIFLAGS}d"
+else { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }; Py_DEBUG='false'
+fi
+else case e in #(
+  e) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; } ;;
+esac
+fi
+
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking LDVERSION" >&5
+printf %s "checking LDVERSION... " >&6; }
+LDVERSION='$VERSION$ABIFLAGS'
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $LDVERSION" >&5
+printf "%s\n" "$LDVERSION" >&6; }
 
 # LINKCC is the command that links the python executable -- default is $(CC).
 # If CXX is set, and if it is needed to link a main function that was
@@ -8268,72 +8339,6 @@ if test -z "$LN" ; then
 		*) LN=ln;;
 	esac
 fi
-
-# For calculating the .so ABI tag.
-
-
-ABIFLAGS=""
-ABI_THREAD=""
-
-# Check for --disable-gil
-# --disable-gil
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for --disable-gil" >&5
-printf %s "checking for --disable-gil... " >&6; }
-# Check whether --enable-gil was given.
-if test ${enable_gil+y}
-then :
-  enableval=$enable_gil; if test "x$enable_gil" = xyes
-then :
-  disable_gil=no
-else case e in #(
-  e) disable_gil=yes ;;
-esac
-fi
-else case e in #(
-  e) disable_gil=no
- ;;
-esac
-fi
-
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $disable_gil" >&5
-printf "%s\n" "$disable_gil" >&6; }
-
-if test "$disable_gil" = "yes"
-then
-
-printf "%s\n" "#define Py_GIL_DISABLED 1" >>confdefs.h
-
-  # Add "t" for "threaded"
-  ABIFLAGS="${ABIFLAGS}t"
-  ABI_THREAD="t"
-fi
-
-# Check for --with-pydebug
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for --with-pydebug" >&5
-printf %s "checking for --with-pydebug... " >&6; }
-
-# Check whether --with-pydebug was given.
-if test ${with_pydebug+y}
-then :
-  withval=$with_pydebug;
-if test "$withval" != no
-then
-
-printf "%s\n" "#define Py_DEBUG 1" >>confdefs.h
-
-  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-printf "%s\n" "yes" >&6; };
-  Py_DEBUG='true'
-  ABIFLAGS="${ABIFLAGS}d"
-else { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
-printf "%s\n" "no" >&6; }; Py_DEBUG='false'
-fi
-else case e in #(
-  e) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
-printf "%s\n" "no" >&6; } ;;
-esac
-fi
-
 
 # Check for --with-trace-refs
 # --with-trace-refs
@@ -26999,11 +27004,6 @@ fi
 
 EXT_SUFFIX=.${SOABI}${SHLIB_SUFFIX}
 
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking LDVERSION" >&5
-printf %s "checking LDVERSION... " >&6; }
-LDVERSION='$(VERSION)$(ABIFLAGS)'
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $LDVERSION" >&5
-printf "%s\n" "$LDVERSION" >&6; }
 
 # Configure the flags and dependencies used when compiling shared modules.
 # Do not rename LIBPYTHON - it's accessed via sysconfig by package build

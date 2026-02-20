@@ -1434,7 +1434,50 @@ INSTSONAME='$(LDLIBRARY)'
 DLLLIBRARY=''
 LDLIBRARYDIR=''
 RUNSHARED=''
-LDVERSION="$VERSION"
+
+# For calculating the .so ABI tag.
+AC_SUBST([ABIFLAGS])
+AC_SUBST([ABI_THREAD])
+ABIFLAGS=""
+ABI_THREAD=""
+
+# Check for --disable-gil
+# --disable-gil
+AC_MSG_CHECKING([for --disable-gil])
+AC_ARG_ENABLE([gil],
+  [AS_HELP_STRING([--disable-gil], [enable support for running without the GIL (default is no)])],
+  [AS_VAR_IF([enable_gil], [yes], [disable_gil=no], [disable_gil=yes])], [disable_gil=no]
+)
+AC_MSG_RESULT([$disable_gil])
+
+if test "$disable_gil" = "yes"
+then
+  AC_DEFINE([Py_GIL_DISABLED], [1],
+            [Define if you want to disable the GIL])
+  # Add "t" for "threaded"
+  ABIFLAGS="${ABIFLAGS}t"
+  ABI_THREAD="t"
+fi
+
+# Check for --with-pydebug
+AC_MSG_CHECKING([for --with-pydebug])
+AC_ARG_WITH([pydebug],
+  [AS_HELP_STRING([--with-pydebug], [build with Py_DEBUG defined (default is no)]) ],
+[
+if test "$withval" != no
+then
+  AC_DEFINE([Py_DEBUG], [1],
+  [Define if you want to build an interpreter with many run-time checks.])
+  AC_MSG_RESULT([yes]);
+  Py_DEBUG='true'
+  ABIFLAGS="${ABIFLAGS}d"
+else AC_MSG_RESULT([no]); Py_DEBUG='false'
+fi],
+[AC_MSG_RESULT([no])])
+
+AC_MSG_CHECKING([LDVERSION])
+LDVERSION='$VERSION$ABIFLAGS'
+AC_MSG_RESULT([$LDVERSION])
 
 # LINKCC is the command that links the python executable -- default is $(CC).
 # If CXX is set, and if it is needed to link a main function that was
@@ -1718,46 +1761,6 @@ if test -z "$LN" ; then
 		*) LN=ln;;
 	esac
 fi
-
-# For calculating the .so ABI tag.
-AC_SUBST([ABIFLAGS])
-AC_SUBST([ABI_THREAD])
-ABIFLAGS=""
-ABI_THREAD=""
-
-# Check for --disable-gil
-# --disable-gil
-AC_MSG_CHECKING([for --disable-gil])
-AC_ARG_ENABLE([gil],
-  [AS_HELP_STRING([--disable-gil], [enable support for running without the GIL (default is no)])],
-  [AS_VAR_IF([enable_gil], [yes], [disable_gil=no], [disable_gil=yes])], [disable_gil=no]
-)
-AC_MSG_RESULT([$disable_gil])
-
-if test "$disable_gil" = "yes"
-then
-  AC_DEFINE([Py_GIL_DISABLED], [1],
-            [Define if you want to disable the GIL])
-  # Add "t" for "threaded"
-  ABIFLAGS="${ABIFLAGS}t"
-  ABI_THREAD="t"
-fi
-
-# Check for --with-pydebug
-AC_MSG_CHECKING([for --with-pydebug])
-AC_ARG_WITH([pydebug],
-  [AS_HELP_STRING([--with-pydebug], [build with Py_DEBUG defined (default is no)]) ],
-[
-if test "$withval" != no
-then
-  AC_DEFINE([Py_DEBUG], [1],
-  [Define if you want to build an interpreter with many run-time checks.])
-  AC_MSG_RESULT([yes]);
-  Py_DEBUG='true'
-  ABIFLAGS="${ABIFLAGS}d"
-else AC_MSG_RESULT([no]); Py_DEBUG='false'
-fi],
-[AC_MSG_RESULT([no])])
 
 # Check for --with-trace-refs
 # --with-trace-refs
@@ -6436,9 +6439,6 @@ fi
 AC_SUBST([EXT_SUFFIX])
 EXT_SUFFIX=.${SOABI}${SHLIB_SUFFIX}
 
-AC_MSG_CHECKING([LDVERSION])
-LDVERSION='$(VERSION)$(ABIFLAGS)'
-AC_MSG_RESULT([$LDVERSION])
 
 # Configure the flags and dependencies used when compiling shared modules.
 # Do not rename LIBPYTHON - it's accessed via sysconfig by package build
